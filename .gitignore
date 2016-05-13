@@ -1,0 +1,16 @@
+.idea
+.sublimets
+.tscache
+*.js
+*.js.map
+!/*.js
+!/tasks/*.js
+dist
+node_modules
+bower_components
+tests/typings/dist/
+.baseDir.ts
+html-report
+coverage-final.lcov
+coverage-unmapped.json
+/_build

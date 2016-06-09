@@ -20,7 +20,6 @@ function toString(...segments: string[]): string {
 	return segments.reduce((prev, next) => prev + '/' + encode(next));
 }
 
-
 export function pathFactory(...segments: string[]): JsonPath {
 	return {
 		segments: () => segments.map(segment => decode(segment)),

@@ -1,6 +1,6 @@
 import { isEqual } from '../utils';
 import { JsonPath, pathFactory } from './JsonPath';
-export const enum Type {
+export const enum OperationType {
 	Add,
 	Remove,
 	Replace,
@@ -137,9 +137,9 @@ function toString() {
 
 	return JSON.stringify(jsonObj);
 }
-export function operationFactory(type: Type, path: JsonPath | string[], value?: any, from?: JsonPath | string[], oldValue?: any): Operation {
+export function operationFactory(type: OperationType, path: JsonPath | string[], value?: any, from?: JsonPath | string[], oldValue?: any): Operation {
 	switch (type) {
-		case Type.Add:
+		case OperationType.Add:
 			return <Add> {
 				op: 'add',
 				path: getPath(path),
@@ -147,14 +147,14 @@ export function operationFactory(type: Type, path: JsonPath | string[], value?: 
 				apply: add,
 				toString: toString
 			};
-		case Type.Remove:
+		case OperationType.Remove:
 			return <Remove> {
 				op: 'remove',
 				path: getPath(path),
 				apply: remove,
 				toString: toString
 			};
-		case Type.Replace:
+		case OperationType.Replace:
 			return <Replace> {
 				op: 'replace',
 				path: getPath(path),
@@ -163,7 +163,7 @@ export function operationFactory(type: Type, path: JsonPath | string[], value?: 
 				apply: replace,
 				toString: toString
 			};
-		case Type.Move:
+		case OperationType.Move:
 			if (!from) {
 				throw new Error('From value is required for Move operations');
 			}
@@ -174,7 +174,7 @@ export function operationFactory(type: Type, path: JsonPath | string[], value?: 
 				apply: move,
 				toString: toString
 			};
-		case Type.Copy:
+		case OperationType.Copy:
 			if (!from) {
 				throw new Error('From value is required in Copy operation');
 			}
@@ -185,7 +185,7 @@ export function operationFactory(type: Type, path: JsonPath | string[], value?: 
 				apply: copy,
 				toString: toString
 			};
-		case Type.Test:
+		case OperationType.Test:
 			return <Test> {
 				op: 'test',
 				path: getPath(path),

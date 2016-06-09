@@ -4,7 +4,7 @@ export function shouldRecurseInto(value: any): value is Object {
 
 export function isEqual(a: any, b: any): boolean {
 	if (Array.isArray(a) && Array.isArray(b)) {
-		return a.length === b.length && a.every((element: any, i: number) => (isEqual(element, b[i])));
+		return a.length === b.length && a.every((element: any, i: number) => isEqual(element, b[i]));
 	} else if (shouldRecurseInto(a) && shouldRecurseInto(b)) {
 		const keysForA = Object.keys(a).sort();
 		const keysforB = Object.keys(b).sort();

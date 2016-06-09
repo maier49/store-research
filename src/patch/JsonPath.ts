@@ -4,6 +4,10 @@ export interface JsonPath {
 	add: (segment: String) => JsonPath;
 }
 
+export function navigate(path: JsonPath, target: any) {
+	return path.segments().reduce((prev: any, next: string) => prev ? prev[next] : prev, target);
+}
+
 function decode(segment: string) {
 	return segment.replace(/~1/g, '/').replace(/~0/g, '~');
 }
@@ -15,6 +19,7 @@ function encode(segment: string) {
 function toString(...segments: string[]): string {
 	return segments.reduce((prev, next) => prev + '/' + encode(next));
 }
+
 
 export function pathFactory(...segments: string[]): JsonPath {
 	return {

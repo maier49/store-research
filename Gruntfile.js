@@ -132,11 +132,6 @@ module.exports = function (grunt) {
 					config: '<%= devDirectory %>/tests/intern-local'
 				}
 			},
-			node: {
-				options: {
-					runType: 'client'
-				}
-			},
 			proxy: {
 				options: {
 					proxyOnly: true
@@ -252,13 +247,12 @@ module.exports = function (grunt) {
 		var flags = Object.keys(this.flags);
 
 		if (!flags.length) {
-			flags.push('node');
+			flags.push('local');
 		}
 
 		grunt.option('force', true);
 		grunt.task.run('clean:coverage');
 		grunt.task.run('dev');
-		setCombined(true);
 		flags.forEach(function (flag) {
 			grunt.task.run('intern:' + flag);
 		});

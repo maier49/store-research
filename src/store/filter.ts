@@ -1,5 +1,6 @@
 import { JsonPath, navigate, pathFactory } from '../patch/jsonPath';
 import { isEqual } from '../utils';
+import Query, { QueryType } from './query';
 
 export type FilterFunction<T extends { id: string }> = (data: T[]) => T[];
 export type ObjectPath = JsonPath | string;
@@ -26,10 +27,9 @@ export const enum BooleanOp {
 
 export type FilterChainMember<T extends { id: string }> = (SimpleFilter<T> | BooleanOp);
 
-export interface SimpleFilter<T extends { id: string }> {
+export interface SimpleFilter<T extends { id: string }> extends Query<T> {
 	type: FilterType;
-	apply: FilterFunction<T>;
-	test: (item: T) => boolean;
+	test?: (item: T) => boolean;
 	toString(): string;
 	filterChain?: FilterChainMember<T>[];
 	path?: ObjectPath;
@@ -117,7 +117,8 @@ function filterFactoryHelper<T extends { id: string }>(filters: FilterChainMembe
 		deepEqualTo: (value: any, path?: ObjectPath) => comparatorFilterHelper(FilterType.DeepEqualTo, value, path),
 		notEqualTo: (value: any, path?: ObjectPath) => comparatorFilterHelper(FilterType.NotEqualTo, value, path),
 		notDeepEqualTo: (value: any, path?: ObjectPath) => comparatorFilterHelper(FilterType.NotDeepEqualTo, value, path),
-		custom: (test: (item: T) => boolean) => comparatorFilterHelper(FilterType.Custom, test)
+		custom: (test: (item: T) => boolean) => comparatorFilterHelper(FilterType.Custom, test),
+		queryType: QueryType.Filter
 	};
 
 	return filter;
@@ -235,7 +236,8 @@ function comparatorFactory<T extends { id: string }>(operator: FilterType, value
 		toString: toString,
 		path: path,
 		value: value,
-		type: type
+		type: type,
+		queryType: QueryType.Filter
 	};
 }
 

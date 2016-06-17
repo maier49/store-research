@@ -1,60 +1,146 @@
-// import { Patch, PatchRecord, diff } from '../patch/Patch';
-//
-// export interface Store<T extends { id: string }> {
-// 	new (options?: { data?: T[] }): Store<T>;
-// 	get(id: string): T;
-// 	add(item: T): boolean;
-// 	delete(id: string): boolean;
-// 	update(callback: (data: T[]) => T[]): Patch;
-// 	onUpdate(patch: PatchRecord);
-// 	release();
-// 	fetch(): T[];
+import Query, { QueryType } from './Query';
+import { Patch, PatchRecord, diff } from '../patch/Patch';
+import { Filter } from './Filter';
+import { Sort } from './Sort';
+
+export interface ItemAdded<T extends { id: string }> {
+	item: T;
+}
+
+export interface ItemDeleted {
+	id: string;
+}
+export type Update<T extends { id: string }> = ItemAdded<T> | ItemDeleted | PatchRecord;
+export interface Subscriber<T extends { id: string }> {
+	onUpdate(updates: Update<T>[]): void;
+}
+
+function isFilter<T extends { id: string }>(filterOrTest: Filter<T> | ((item: T) => boolean)): filterOrTest is Filter<T> {
+	return typeof filterOrTest !== 'function';
+}
+
+// function isSort<T extends { id: string }>(sortOrComparator: Sort<T> | ((a: T, b: T) => number)): sortOrComparator is Sort<T> {
+// 	return typeof sortOrComparator !== 'function';
 // }
-//
-// export class MemoryStore<T> {
-// 	private collection: T[];
-// 	private sourceStore: Store<T>;
-// 	private childStores: Array<Store<T>>;
-// 	private map: { [ index: string ]: T };
-//
-// 	new (options?: { data? : T[], source?: Store<T> }) {
-// 		options = options || {};
-// 		this.collection = options.data || [];
-// 		this.map = this.collection.map(function(item) {
-// 			if (this.map[item.id]) {
-// 				throw new Error('Collection contains item with duplicate ID');
-// 			}
-// 			this.map[item.id] = item;
-// 		});
-// 		this.sourceStore = options.source || null;
-// 	}
-//
-// 	get(id: string) {
-// 		return this.map[id];
-// 	}
-//
-// 	add(item) {
-// 		this.collection
-//
-// 		// TODO: perhaps a reviver function passed to 'fromJS' can handle id properties
-// 		// named something other than 'id'
-// 		this._collection = this._collection.push(immutable.fromJS(item));
-// 	}
-//
-// 	put: function (item) {
-// 		if (this._collection.has(item.id)) {
-// 			// TODO: maybe use 'update' or 'merge' methods?
-// 			this._collection = this._collection.set(item.id, item);
-// 		}
-// 		else {
-// 			this._collection = this._collection.push(immutable.fromJS(item));
-// 		}
-// 	}
-//
-// 	delete: function (id) {
-// 		this._collection = this._collection.delete(id);
-// 	}
-// };
-//
-// return MemoryStore;
-// });
+
+export interface Store<T extends { id: string }> extends Subscriber<T> {
+	get(id: string): T;
+	add(item: T): boolean;
+	put(item: T): void;
+	delete(id: string): boolean;
+	update(callback: (data: T[]) => T[]): Patch;
+	onUpdate(updates: (PatchRecord | T)[]): void;
+	subscribe(subscriber: Subscriber<T>): () => void ;
+	unsubscribe(subscriber: Subscriber<T>): void;
+	release(): void;
+	fetch(): T[];
+	filter(filter: Filter<T>): Store<T>;
+	filter(test: (item: T) => boolean): Store<T>;
+	sort(sort: Sort<T>): Store<T>;
+	sort(comparator: (a: T, b: T) => number): Store<T>;
+	range(range: Range): Store<T>;
+	range(start: number, count: number): Store<T>;
+}
+
+export interface MemoryOptions<T extends { id: string }> {
+	data?: T[];
+	source?: Store<T>;
+	queries?: Query[];
+	map?: { [ index: string ]: T };
+}
+
+export class MemoryStore<T extends { id: string }> implements Store<T> {
+	private collection: T[];
+	private queriedCollection: T[];
+	private queries: T[];
+	private	subscribers: Subscriber[];
+	private map: { [ index: string ]: { item: T, index: number } };
+	private source: Store<T>;
+
+	constructor(options?: MemoryOptions<T>) {
+		this.collection = options.data || [];
+		this.queries  = options.queries || [];
+		this.queriedCollection =  this.queries.reduce((prev, next) => next.apply(prev), this.collection);
+		this.map = options.map || this.buildMap();
+		this.source = options.source;
+		if (this.source) {
+			this.source.subscribe(this);
+		}
+		this.subscribe(this);
+	}
+
+	release() {
+		this.source.unsubscribe(this);
+		this.queries = this.queries.filter(function(query: Query<T>): boolean {
+			return query.queryType === QueryType.Sort;
+		});
+	}
+	private buildMap(): { [ index: string ]: T } {
+		return this.collection.reduce(function(prev, next, index) {
+			if (prev[next.id]) {
+				throw new Error('Collection contains item with duplicate ID');
+			}
+			prev[next.id] = { item: next, index: index };
+		}, {});
+	}
+
+	get(id: string) {
+		return this.map[id].item;
+	}
+
+	add(item) {
+		if (this.map[item.id]) {
+			throw new Error('Item added to collection item with duplicate ID');
+		}
+		this.collection.push(item);
+
+		this.subscribers.forEach((subscriber) => subscriber.onUpdate([ { item: item } ]));
+	}
+
+	put(item: T) {
+		if (this.map[item.id]) {
+			// TODO: maybe use 'update' or 'merge' methods?
+			const mapEntry = this.map[item.id];
+			const oldItem = mapEntry.item;
+			this.collection[mapEntry.index] = mapEntry.item = item;
+
+			const patchRecord: PatchRecord = { [item.id]:  diff(oldItem, item) };
+			this.subscribers.forEach((subscriber) => subscriber.onUpdate([ patchRecord ]));
+		} else {
+			this.add(item);
+		}
+	}
+
+	delete(id: string) {
+		const mapEntry = this.map[id];
+		delete this.map[id];
+		this.collection.splice(mapEntry.index, 1);
+		this.subscribers.forEach((subscriber) => subscriber.onUpdate([ { id: id } ]));
+	}
+
+	subscribe(subscriber: Subscriber) {
+		this.subscribers.push(subscriber);
+		return () => this.subscribers.splice(this.subscribers.indexOf(subscriber), 1);
+	}
+
+	unsubscribe(subscriber: Subscriber) {
+		this.subscribers.splice(this.subscribers.indexOf(subscriber), 1);
+	}
+
+	fetch() {
+		return this.queriedCollection;
+	}
+
+	filter(filterOrTest: Filter<T> | ((item: T) => boolean)) {
+		if (isFilter(filterOrTest)) {
+			return new MemoryStore({
+				collection: this.collection,
+				queries: [ ...this.queries, filterOrTest ],
+				map: this.map
+			});
+		} else {
+
+		}
+	}
+}
+

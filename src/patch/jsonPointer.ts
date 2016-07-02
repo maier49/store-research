@@ -1,10 +1,10 @@
-export interface JsonPath {
+export interface JsonPointer {
 	segments: () => string[];
 	toString: () => string;
-	add: (segment: String) => JsonPath;
+	add: (segment: String) => JsonPointer;
 }
 
-export function navigate(path: JsonPath, target: any) {
+export function navigate(path: JsonPointer, target: any) {
 	return path.segments().reduce((prev: any, next: string) => prev ? prev[next] : prev, target);
 }
 
@@ -20,7 +20,7 @@ function toString(...segments: string[]): string {
 	return segments.reduce((prev, next) => prev + '/' + encode(next));
 }
 
-export function pathFactory(...segments: string[]): JsonPath {
+export function pathFactory(...segments: string[]): JsonPointer {
 	return {
 		segments: () => segments.map(segment => decode(segment)),
 		toString: () => toString(...segments),

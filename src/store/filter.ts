@@ -1,9 +1,9 @@
-import { JsonPath, navigate, pathFactory } from '../patch/jsonPath';
+import { JsonPointer, navigate, pathFactory } from '../patch/JsonPointer';
 import { isEqual } from '../utils';
 import Query, { QueryType } from './query';
 
 export type FilterFunction<T extends { id: string }> = (data: T[]) => T[];
-export type ObjectPath = JsonPath | string;
+export type ObjectPointer = JsonPointer | string;
 
 export const enum FilterType {
 	LessThan,
@@ -11,6 +11,7 @@ export const enum FilterType {
 	EqualTo,
 	DeepEqualTo,
 	In,
+	Contains,
 	NotEqualTo,
 	NotDeepEqualTo,
 	LessThanOrEqualTo,
@@ -30,24 +31,24 @@ export type FilterChainMember<T extends { id: string }> = (SimpleFilter<T> | Boo
 export interface SimpleFilter<T extends { id: string }> extends Query<T> {
 	type: FilterType;
 	test?: (item: T) => boolean;
-	toString(): string;
 	filterChain?: FilterChainMember<T>[];
-	path?: ObjectPath;
+	path?: ObjectPointer;
 	value?: any;
 }
 export interface BooleanFilter<T extends { id: string }> extends SimpleFilter<T> {
-	lessThan(value: number, path: ObjectPath): Filter<T>;
-	lessThanOrEqualTo(value: number, path: ObjectPath): Filter<T>;
-	greaterThan(value: number, path: ObjectPath): Filter<T>;
-	greaterThanOrEqualTo(value: number, path: ObjectPath): Filter<T>;
-	matches(test: RegExp, path: ObjectPath): Filter<T>;
-	in<U>(value: U, path?: ObjectPath): Filter<T>;
-	equalTo<U>(value: U, path?: ObjectPath): Filter<T>;
-	deepEqualTo<U extends {}>(value: U, path?: ObjectPath): Filter<T>;
-	deepEqualTo<U>(value: U[], path?: ObjectPath): Filter<T>;
-	notEqualTo<U>(value: U, path?: ObjectPath): Filter<T>;
-	notDeepEqualTo<U extends {}>(value: U, path?: ObjectPath): Filter<T>;
-	notDeepEqualTo<U>(value: U[], path?: ObjectPath): Filter<T>;
+	lessThan(path: ObjectPointer, value: number): Filter<T>;
+	lessThanOrEqualTo(path: ObjectPointer, value: number): Filter<T>;
+	greaterThan(path: ObjectPointer, value: number): Filter<T>;
+	greaterThanOrEqualTo(path: ObjectPointer, value: number): Filter<T>;
+	matches(path: ObjectPointer, test: RegExp): Filter<T>;
+	in<U>(path: ObjectPointer, value: U[]): Filter<T>;
+	contains<U>(path: ObjectPointer, value: U): Filter<T>;
+	equalTo<U>(path: ObjectPointer, value: U): Filter<T>;
+	deepEqualTo<U extends {}>(path: ObjectPointer, value: U): Filter<T>;
+	deepEqualTo<U>(path: ObjectPointer, value: U[]): Filter<T>;
+	notEqualTo<U>(path: ObjectPointer, value: U): Filter<T>;
+	notDeepEqualTo<U extends {}>(path: ObjectPointer, value: U): Filter<T>;
+	notDeepEqualTo<U>(path: ObjectPointer, value: U[]): Filter<T>;
 	custom(test: (item: T) => boolean): Filter<T>;
 }
 export interface Filter<T extends { id: string }> extends BooleanFilter<T> {
@@ -61,23 +62,24 @@ function isFilter<T extends { id: string }>(filterOrFunction: FilterChainMember<
 	return typeof filterOrFunction !== 'function'  && (<any> filterOrFunction).apply;
 }
 
-export function filterFactory<T extends { id: string }>(serializationStrategy?: (filter: Filter<T>) => string): Filter<T> {
+export function filterFactory<T extends { id: string }>(serializer?: (filter: Filter<T>) => string): Filter<T> {
 	// var subFilters: NestedFilter<T> = subFilters || [];
 	let filters: FilterChainMember<T>[] = [];
-	serializationStrategy = serializationStrategy || serializeFilter;
+	serializer = serializer || serializeFilter;
 
-	return filterFactoryHelper(filters, serializationStrategy);
+	return filterFactoryHelper(filters, serializer);
 }
 
-function filterFactoryHelper<T extends { id: string }>(filters: FilterChainMember<T>[], serializationStrategy?: (filter: Filter<T>) => string): Filter<T> {
+function filterFactoryHelper<T extends { id: string }>(filters: FilterChainMember<T>[], serializer?: (filter: Filter<T>) => string): Filter<T> {
 	// Small helpers to abstract common operations for building comparator filters
 	// The main helper delegates to the factory, adding and AND operation before the next filter,
 	// because by default each filter in a chain will be ANDed with the previous.
-	function comparatorFilterHelper(filterType: FilterType, value: any, path?: ObjectPath): Filter<T> {
-		return filterFactoryHelper(
-			[ ...filters, BooleanOp.And, comparatorFactory<T>(filterType, value, path) ],
-			serializationStrategy
-		);
+	function comparatorFilterHelper(filterType: FilterType, value: any, path?: ObjectPointer): Filter<T> {
+		const needsOperator = filters.length > 0 &&
+			(filters[filters.length - 1] !== BooleanOp.And && filters[filters.length - 1] !== BooleanOp.Or);
+		const newFilters = needsOperator ? [ ...filters, BooleanOp.And, comparatorFactory<T>(filterType, value, path) ] :
+			[ ...filters, comparatorFactory<T>(filterType, value, path) ];
+		return filterFactoryHelper(newFilters, serializer);
 	}
 
 	const filter: Filter<T> = {
@@ -86,8 +88,9 @@ function filterFactoryHelper<T extends { id: string }>(filters: FilterChainMembe
 		apply(data: T[]) {
 			return data.filter(this.test);
 		},
+		filterChain: filters,
 		toString() {
-			return serializationStrategy(this);
+			return serializer(this);
 		},
 		and(newFilter?: Filter<T>) {
 			let newFilters: FilterChainMember<T>[] = [];
@@ -96,7 +99,7 @@ function filterFactoryHelper<T extends { id: string }>(filters: FilterChainMembe
 			} else if (filters.length) {
 				newFilters.push(...filters, BooleanOp.And);
 			}
-			return filterFactoryHelper(newFilters, serializationStrategy);
+			return filterFactoryHelper(newFilters, serializer);
 		},
 		or(newFilter?: Filter<T>) {
 			let newFilters: FilterChainMember<T>[] = [];
@@ -105,18 +108,19 @@ function filterFactoryHelper<T extends { id: string }>(filters: FilterChainMembe
 			} else if (filters.length) {
 				newFilters.push(...filters, BooleanOp.Or);
 			}
-			return filterFactoryHelper(newFilters, serializationStrategy);
+			return filterFactoryHelper(newFilters, serializer);
 		},
-		lessThan: (value: number, path: ObjectPath) => comparatorFilterHelper(FilterType.LessThan, value, path),
-		lessThanOrEqualTo: (value: number, path: ObjectPath) => comparatorFilterHelper(FilterType.LessThanOrEqualTo, value, path),
-		greaterThan: (value: number, path: ObjectPath) => comparatorFilterHelper(FilterType.GreaterThan, value, path),
-		greaterThanOrEqualTo: (value: number, path: ObjectPath) => comparatorFilterHelper(FilterType.GreaterThanOrEqualTo, value, path),
-		matches: (value: RegExp, path: ObjectPath) => comparatorFilterHelper(FilterType.Matches, value, path),
-		'in': (value: any, path?: ObjectPath) => comparatorFilterHelper(FilterType.In, value, path),
-		equalTo: (value: any, path?: ObjectPath) => comparatorFilterHelper(FilterType.EqualTo, value, path),
-		deepEqualTo: (value: any, path?: ObjectPath) => comparatorFilterHelper(FilterType.DeepEqualTo, value, path),
-		notEqualTo: (value: any, path?: ObjectPath) => comparatorFilterHelper(FilterType.NotEqualTo, value, path),
-		notDeepEqualTo: (value: any, path?: ObjectPath) => comparatorFilterHelper(FilterType.NotDeepEqualTo, value, path),
+		lessThan: (path: ObjectPointer, value: number) => comparatorFilterHelper(FilterType.LessThan, value, path),
+		lessThanOrEqualTo: (path: ObjectPointer, value: number) => comparatorFilterHelper(FilterType.LessThanOrEqualTo, value, path),
+		greaterThan: (path: ObjectPointer, value: number) => comparatorFilterHelper(FilterType.GreaterThan, value, path),
+		greaterThanOrEqualTo: (path: ObjectPointer, value: number) => comparatorFilterHelper(FilterType.GreaterThanOrEqualTo, value, path),
+		matches: (path: ObjectPointer, value: RegExp) => comparatorFilterHelper(FilterType.Matches, value, path),
+		'in': (path: ObjectPointer, value: any) => comparatorFilterHelper(FilterType.In, value, path),
+		contains: (path: ObjectPointer, value: any) => comparatorFilterHelper(FilterType.Contains, value, path),
+		equalTo: (path: ObjectPointer, value: any) => comparatorFilterHelper(FilterType.EqualTo, value, path),
+		deepEqualTo: (path: ObjectPointer, value: any) => comparatorFilterHelper(FilterType.DeepEqualTo, value, path),
+		notEqualTo: (path: ObjectPointer, value: any) => comparatorFilterHelper(FilterType.NotEqualTo, value, path),
+		notDeepEqualTo: (path: ObjectPointer, value: any) => comparatorFilterHelper(FilterType.NotDeepEqualTo, value, path),
 		custom: (test: (item: T) => boolean) => comparatorFilterHelper(FilterType.Custom, test),
 		queryType: QueryType.Filter
 	};
@@ -155,54 +159,54 @@ function applyFilterChain<T extends { id: string }>(item: T, filterChain: Filter
 	});
 }
 
-function comparatorFactory<T extends { id: string }>(operator: FilterType, value: any, path?: ObjectPath): SimpleFilter<T> {
+function comparatorFactory<T extends { id: string }>(operator: FilterType, value: any, path?: ObjectPointer): SimpleFilter<T> {
 	path = typeof path === 'string' ? pathFactory(path) : path;
 	let test: (property: any) => boolean;
 	let type: FilterType;
-	let toString: () => string;
+	let operatorString: string;
 	switch (operator) {
 		case FilterType.LessThan:
 			type = FilterType.LessThan;
 			test = property => property < value;
-			toString = () => `${path.toString()} <  ${value}`;
+			operatorString = 'lt';
 			break;
 		case FilterType.LessThanOrEqualTo:
 			type = FilterType.LessThanOrEqualTo;
 			test = property => property <= value;
-			toString = () => `${path.toString()} <= ${value}`;
+			operatorString = 'lte';
 			break;
 		case FilterType.GreaterThan:
 			type = FilterType.GreaterThan;
 			test = property => property > value;
-			toString = () => `${path.toString()} > ${value}`;
+			operatorString = 'gt';
 			break;
 		case FilterType.GreaterThanOrEqualTo:
 			type = FilterType.GreaterThanOrEqualTo;
 			test = property => property >= value;
-			toString = () => `${path.toString()} >= ${value}`;
+			operatorString = 'gte';
 			break;
 		case FilterType.EqualTo:
 			type = FilterType.EqualTo;
 			test = property => property === value;
-			toString = () => `${path ? path.toString() : 'this'} === ${value}`;
+			operatorString = 'eq';
 			break;
 		case FilterType.NotEqualTo:
 			type = FilterType.NotEqualTo;
 			test = property => property !== value;
-			toString = () => `${path ? path.toString() : 'this'} !== ${value}`;
+			operatorString = 'ne';
 			break;
 		case FilterType.DeepEqualTo:
 			type = FilterType.DeepEqualTo;
 			test = property => isEqual(property, value);
-			toString = () => `${path ? path.toString() : 'this'} == ${value}`;
+			operatorString = 'eq';
 			break;
 		case FilterType.NotDeepEqualTo:
 			type = FilterType.NotDeepEqualTo;
 			test = property => !isEqual(property, value);
-			toString = () => `${path ? path.toString() : 'this'} != ${value}`;
+			operatorString = 'ne';
 			break;
-		case FilterType.In:
-			type = FilterType.In;
+		case FilterType.Contains:
+			type = FilterType.Contains;
 			test = propertyOrItem => {
 				if (Array.isArray(propertyOrItem)) {
 					return propertyOrItem.indexOf(value) > -1;
@@ -210,30 +214,38 @@ function comparatorFactory<T extends { id: string }>(operator: FilterType, value
 					return propertyOrItem && Boolean(propertyOrItem[value]);
 				}
 			};
-			toString = () => `${value} in ${path ? path.toString() : 'this'}`;
+			operatorString = 'contains';
+			break;
+		case FilterType.In:
+			type = FilterType.In;
+			test = propertyOrItem => Array.isArray(value) && value.indexOf(propertyOrItem) > -1;
+			operatorString = 'in';
 			break;
 		case FilterType.Matches:
 			type = FilterType.Matches;
 			test = property => value.test(property);
-			toString = () => `${path.toString()} matches ${value}`;
 			break;
 		case FilterType.Custom:
 			type = FilterType.Custom;
 			test = value;
-			toString = () => 'Cannot parse custom filter test';
 			break;
 		default:
 			return null;
 	}
 	return {
 		test: (item: T) => {
-			let propertyValue: any = path ? navigate(<JsonPath> path, item) : item;
+			let propertyValue: any = path ? navigate(<JsonPointer> path, item) : item;
 			return test(propertyValue);
 		},
 		apply: function(data: T[]) {
 			return data.filter(this.test);
 		},
-		toString: toString,
+		toString: function() {
+			if (!operatorString) {
+				throw Error('Cannot parse this filter type to an RQL query string');
+			}
+			return `${operatorString}(${path.toString()}, ${JSON.stringify(value)})`;
+		},
 		path: path,
 		value: value,
 		type: type,
@@ -243,15 +255,22 @@ function comparatorFactory<T extends { id: string }>(operator: FilterType, value
 
 //// Default serialization function
 function serializeFilter(filter: Filter<any>): string {
+	let operator = '&';
 	if (filter.filterChain) {
 		return filter.filterChain.reduce(function(prev: string, next: FilterChainMember<any>) {
 			if (isFilter(next)) {
-				return prev + '(' + next.toString() + ')';
+				const start = next.filterChain ? '(' : '';
+				const end = next.filterChain ? ')' : '';
+				return prev + (prev ? operator : '') + (prev ? start : '') + next.toString() + (prev ? end : '');
 			} else if (next === BooleanOp.And) {
-				return prev + ' AND ';
+				operator = '&';
+				return prev;
 			} else {
-				return prev + ' OR ';
+				operator = '|';
+				return prev;
 			}
 		}, '');
+	} else {
+		return filter.toString();
 	}
 }

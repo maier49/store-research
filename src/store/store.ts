@@ -1,7 +1,8 @@
 import Query, { QueryType } from './Query';
-import { Patch, PatchRecord, diff } from '../patch/Patch';
+import { PatchRecord, diff } from '../patch/Patch';
 import { Filter } from './Filter';
-import { Sort } from './Sort';
+// import { Sort } from './Sort';
+import { Promise } from 'es6-promise';
 
 export interface ItemAdded<T extends { id: string }> {
 	item: T;
@@ -24,45 +25,43 @@ function isFilter<T extends { id: string }>(filterOrTest: Filter<T> | ((item: T)
 // }
 
 export interface Store<T extends { id: string }> extends Subscriber<T> {
-	get(id: string): T;
-	add(item: T): boolean;
-	put(item: T): void;
-	delete(id: string): boolean;
-	update(callback: (data: T[]) => T[]): Patch;
-	onUpdate(updates: (PatchRecord | T)[]): void;
+	get(id: string): Promise<T>;
+	add(item: T): Promise<T>;
+	put(item: T): Promise<T>;
+	delete(id: string): void;
 	subscribe(subscriber: Subscriber<T>): () => void ;
 	unsubscribe(subscriber: Subscriber<T>): void;
 	release(): void;
-	fetch(): T[];
+	fetch(): Promise<T[]>;
 	filter(filter: Filter<T>): Store<T>;
 	filter(test: (item: T) => boolean): Store<T>;
-	sort(sort: Sort<T>): Store<T>;
-	sort(comparator: (a: T, b: T) => number): Store<T>;
-	range(range: Range): Store<T>;
-	range(start: number, count: number): Store<T>;
+	// sort(sort: Sort<T>): Store<T>;
+	// sort(comparator: (a: T, b: T) => number): Store<T>;
+	// range(range: Range): Store<T>;
+	// range(start: number, count: number): Store<T>;
 }
 
 export interface MemoryOptions<T extends { id: string }> {
 	data?: T[];
 	source?: Store<T>;
-	queries?: Query[];
-	map?: { [ index: string ]: T };
+	queries?: Query<T>[];
+	map?: { [ index: string ]: { item: T, index: number } };
 }
 
 export class MemoryStore<T extends { id: string }> implements Store<T> {
 	private collection: T[];
 	private queriedCollection: T[];
-	private queries: T[];
-	private	subscribers: Subscriber[];
+	private queries: Query<T>[];
+	private	subscribers: Subscriber<T>[];
 	private map: { [ index: string ]: { item: T, index: number } };
 	private source: Store<T>;
 
 	constructor(options?: MemoryOptions<T>) {
 		this.collection = options.data || [];
 		this.queries  = options.queries || [];
-		this.queriedCollection =  this.queries.reduce((prev, next) => next.apply(prev), this.collection);
 		this.map = options.map || this.buildMap();
 		this.source = options.source;
+
 		if (this.source) {
 			this.source.subscribe(this);
 		}
@@ -75,26 +74,29 @@ export class MemoryStore<T extends { id: string }> implements Store<T> {
 			return query.queryType === QueryType.Sort;
 		});
 	}
-	private buildMap(): { [ index: string ]: T } {
+	private buildMap(): { [ index: string ]: { item: T, index: number } } {
 		return this.collection.reduce(function(prev, next, index) {
 			if (prev[next.id]) {
 				throw new Error('Collection contains item with duplicate ID');
 			}
 			prev[next.id] = { item: next, index: index };
-		}, {});
+			return prev;
+		}, <{ [ index: string ]: { item: T; index: number; }}> {});
 	}
 
 	get(id: string) {
-		return this.map[id].item;
+		return Promise.resolve(this.map[id].item);
 	}
 
-	add(item) {
+	add(item: T) {
 		if (this.map[item.id]) {
 			throw new Error('Item added to collection item with duplicate ID');
 		}
 		this.collection.push(item);
+		this.map[item.id] = { item: item, index: this.collection.length - 1};
 
 		this.subscribers.forEach((subscriber) => subscriber.onUpdate([ { item: item } ]));
+		return Promise.resolve(item);
 	}
 
 	put(item: T) {
@@ -109,38 +111,46 @@ export class MemoryStore<T extends { id: string }> implements Store<T> {
 		} else {
 			this.add(item);
 		}
+
+		return Promise.resolve(item);
 	}
 
-	delete(id: string) {
+	delete(id: string): void {
 		const mapEntry = this.map[id];
 		delete this.map[id];
 		this.collection.splice(mapEntry.index, 1);
 		this.subscribers.forEach((subscriber) => subscriber.onUpdate([ { id: id } ]));
 	}
 
-	subscribe(subscriber: Subscriber) {
+	subscribe(subscriber: Subscriber<T>) {
 		this.subscribers.push(subscriber);
 		return () => this.subscribers.splice(this.subscribers.indexOf(subscriber), 1);
 	}
 
-	unsubscribe(subscriber: Subscriber) {
+	unsubscribe(subscriber: Subscriber<T>) {
 		this.subscribers.splice(this.subscribers.indexOf(subscriber), 1);
 	}
 
 	fetch() {
-		return this.queriedCollection;
+		this.queriedCollection = this.queriedCollection ||
+			this.queries.reduce((prev, next) => next.apply(prev), this.collection);
+		return Promise.resolve(this.queriedCollection);
 	}
 
 	filter(filterOrTest: Filter<T> | ((item: T) => boolean)) {
 		if (isFilter(filterOrTest)) {
 			return new MemoryStore({
-				collection: this.collection,
+				data: this.collection,
 				queries: [ ...this.queries, filterOrTest ],
 				map: this.map
 			});
 		} else {
 
 		}
+	}
+
+	onUpdate(updates: Update<T>[]) {
+		// stub
 	}
 }
 

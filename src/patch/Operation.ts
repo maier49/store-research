@@ -1,5 +1,5 @@
 import { isEqual } from '../utils';
-import { JsonPath, pathFactory } from './JsonPath';
+import { JsonPointer, pathFactory } from './JsonPointer';
 export const enum OperationType {
 	Add,
 	Remove,
@@ -11,7 +11,7 @@ export const enum OperationType {
 
 export interface Operation {
 	op: string;
-	path: JsonPath;
+	path: JsonPointer;
 	toString: () => string;
 	apply: (target: any) => any;
 }
@@ -20,7 +20,7 @@ export interface Add extends Operation {
 	value: any;
 }
 
-function navigatePath(target: any, path: JsonPath) {
+function navigatePath(target: any, path: JsonPointer) {
 	let currentPath = '';
 	let lastSegment: string;
 	const pathSegments = path.segments();
@@ -67,7 +67,7 @@ function replace(target: any) {
 	return target;
 }
 
-function copyOrMove(from: JsonPath, to: JsonPath, target: any, toDelete: boolean) {
+function copyOrMove(from: JsonPointer, to: JsonPointer, target: any, toDelete: boolean) {
 	const moveFrom = navigatePath(target, from);
 	if (typeof moveFrom.object[moveFrom.property] === 'undefined') {
 		throw new Error(`Cannot move from undefined path: ${from.toString()} on object`);
@@ -105,18 +105,18 @@ export interface Replace extends Operation {
 }
 
 export interface Move extends Operation {
-	from: JsonPath;
+	from: JsonPointer;
 }
 
 export interface Copy extends Operation {
-	from: JsonPath;
+	from: JsonPointer;
 }
 
 export interface Test extends Operation {
 	value: any;
 }
 
-function getPath(path: JsonPath | string[]) {
+function getPath(path: JsonPointer | string[]) {
 	if (Array.isArray(path)) {
 		return pathFactory(...path);
 	} else {
@@ -137,7 +137,7 @@ function toString() {
 
 	return JSON.stringify(jsonObj);
 }
-export function operationFactory(type: OperationType, path: JsonPath | string[], value?: any, from?: JsonPath | string[], oldValue?: any): Operation {
+export function operationFactory(type: OperationType, path: JsonPointer | string[], value?: any, from?: JsonPointer | string[], oldValue?: any): Operation {
 	switch (type) {
 		case OperationType.Add:
 			return <Add> {

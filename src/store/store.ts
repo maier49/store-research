@@ -1,6 +1,6 @@
 import Query, { QueryType } from './Query';
 import { PatchRecord, diff } from '../patch/Patch';
-import { Filter } from './Filter';
+import {Filter, filterFactory} from './Filter';
 // import { Sort } from './Sort';
 import { Promise } from 'es6-promise';
 
@@ -11,6 +11,8 @@ export interface ItemAdded<T extends { id: string }> {
 export interface ItemDeleted {
 	id: string;
 }
+
+export type ItemMap<T extends { id: string }> = { [ index: string ]: { item: T, index: number } };
 export type Update<T extends { id: string }> = ItemAdded<T> | ItemDeleted | PatchRecord;
 export interface Subscriber<T extends { id: string }> {
 	onUpdate(updates: Update<T>[]): void;
@@ -45,7 +47,7 @@ export interface MemoryOptions<T extends { id: string }> {
 	data?: T[];
 	source?: Store<T>;
 	queries?: Query<T>[];
-	map?: { [ index: string ]: { item: T, index: number } };
+	map?: ItemMap<T>;
 }
 
 export class MemoryStore<T extends { id: string }> implements Store<T> {
@@ -53,13 +55,13 @@ export class MemoryStore<T extends { id: string }> implements Store<T> {
 	private queriedCollection: T[];
 	private queries: Query<T>[];
 	private	subscribers: Subscriber<T>[];
-	private map: { [ index: string ]: { item: T, index: number } };
+	private map: ItemMap<T>;
 	private source: Store<T>;
 
 	constructor(options?: MemoryOptions<T>) {
 		this.collection = options.data || [];
 		this.queries  = options.queries || [];
-		this.map = options.map || this.buildMap();
+		this.map = options.map || this.buildMap(this.collection);
 		this.source = options.source;
 
 		if (this.source) {
@@ -70,18 +72,21 @@ export class MemoryStore<T extends { id: string }> implements Store<T> {
 
 	release() {
 		this.source.unsubscribe(this);
-		this.queries = this.queries.filter(function(query: Query<T>): boolean {
-			return query.queryType === QueryType.Sort;
+		this.fetch().then(function() {
+			this.queries = this.queries.filter(function(query: Query<T>): boolean {
+				return query.queryType === QueryType.Sort;
+			});
+			this.source = null;
 		});
 	}
-	private buildMap(): { [ index: string ]: { item: T, index: number } } {
-		return this.collection.reduce(function(prev, next, index) {
-			if (prev[next.id]) {
+	private buildMap(collection: T[], map?: ItemMap<T>): { [ index: string ]: { item: T, index: number } } {
+		return collection.reduce(function(prev, next, index) {
+			if (prev[next.id] && !map) {
 				throw new Error('Collection contains item with duplicate ID');
 			}
 			prev[next.id] = { item: next, index: index };
 			return prev;
-		}, <{ [ index: string ]: { item: T; index: number; }}> {});
+		}, map || <ItemMap<T>> {});
 	}
 
 	get(id: string) {
@@ -119,6 +124,8 @@ export class MemoryStore<T extends { id: string }> implements Store<T> {
 		const mapEntry = this.map[id];
 		delete this.map[id];
 		this.collection.splice(mapEntry.index, 1);
+		this.buildMap()
+
 		this.subscribers.forEach((subscriber) => subscriber.onUpdate([ { id: id } ]));
 	}
 
@@ -145,7 +152,11 @@ export class MemoryStore<T extends { id: string }> implements Store<T> {
 				map: this.map
 			});
 		} else {
-
+			return new MemoryStore({
+				data: this.collection,
+				queries: [ ...this.queries, filterFactory().custom(filterOrTest) ],
+				map: this.map
+			});
 		}
 	}
 

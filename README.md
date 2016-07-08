@@ -1,1 +1,1 @@
-This is the readme
+Small project for researching store features

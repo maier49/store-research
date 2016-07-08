@@ -1,22 +1,22 @@
 {
-	"version": "1.7.0",
+	"version": "1.8.10",
 	"compilerOptions": {
 		"declaration": false,
 		"module": "umd",
 		"noImplicitAny": true,
 		"outDir": "_build/",
 		"removeComments": false,
-		"target": "es5",
-		"experimentalDecorators": true,
 		"sourceMap": true,
+		"target": "es5",
 		"moduleResolution": "classic"
 	},
 	"filesGlob": [
+		"./typings/index.d.ts",
 		"./src/**/*.ts",
-		"./tests/**/*.ts",
-		"./typings/index.d.ts"
+		"./tests/**/*.ts"
 	],
 	"files": [
+		"./typings/index.d.ts",
 		"./src/patch/jsonPointer.ts",
 		"./src/patch/operation.ts",
 		"./src/patch/patch.ts",
@@ -28,17 +28,7 @@
 		"./src/utils.ts",
 		"./tests/intern-local.ts",
 		"./tests/intern.ts",
-		"./tests/typings/benchmark/benchmark.d.ts",
-		"./tests/typings/chai/chai.d.ts",
-		"./tests/typings/digdug/digdug.d.ts",
-		"./tests/typings/dojo2/dojo.d.ts",
-		"./tests/typings/formidable/formidable.d.ts",
-		"./tests/typings/intern/intern.d.ts",
-		"./tests/typings/leadfoot/leadfoot.d.ts",
-		"./tests/typings/sinon/sinon.d.ts",
-		"./tests/typings/tsd.d.ts",
 		"./tests/unit/all.ts",
-		"./tests/unit/store/filter.ts",
-		"./typings/index.d.ts"
+		"./tests/unit/store/filter.ts"
 	]
 }

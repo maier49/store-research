@@ -1,14 +1,11 @@
 {
-	"name": "new-store",
-	"description": "A store implementation",
-	
+	"name": "Store research",
+	"description": "A small project to research store features",
 	"authors": [
-		"Bradley Maier"
 	],
-	"main": "main.js",	
 	"repository": {
 		"type": "git",
-		"url": "git@github.com:maier49/store-research.git"
+		"url": "git://github.com/maier49/store-research.git"
 	},
 	"dependencies": {
 	},

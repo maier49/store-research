@@ -1,4 +1,3 @@
-.idea
 .sublimets
 .tscache
 *.js
@@ -6,11 +5,16 @@
 !/*.js
 !/tasks/*.js
 dist
-node_modules
+_build
+typings
+/node_modules/*
+!/node_modules/dojo-actions/
+!/node_modules/dojo-actions/*
+!/node_modules/dojo-compose/
+!/node_modules/dojo-compose/*
+!/node_modules/dojo-core/
+!/node_modules/dojo-core/*
 bower_components
-tests/typings/dist/
 .baseDir.ts
 html-report
-coverage-final.lcov
-coverage-unmapped.json
-/_build
+*.lcov

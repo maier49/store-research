@@ -54,4 +54,3 @@ export function diff(from: any, to: any): Patch {
 		}
 	};
 }
-

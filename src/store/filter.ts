@@ -62,7 +62,7 @@ function isFilter<T extends { id: string }>(filterOrFunction: FilterChainMember<
 	return typeof filterOrFunction !== 'function'  && (<any> filterOrFunction).apply;
 }
 
-export function filterFactory<T extends { id: string }>(serializer?: (filter: Filter<T>) => string): Filter<T> {
+export default function filterFactory<T extends { id: string }>(serializer?: (filter: Filter<T>) => string): Filter<T> {
 	// var subFilters: NestedFilter<T> = subFilters || [];
 	let filters: FilterChainMember<T>[] = [];
 	serializer = serializer || serializeFilter;

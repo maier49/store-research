@@ -327,7 +327,7 @@ registerSuite({
 			},
 
 			'in': function() {
-				assert.strictEqual(filterFactory().in(pathFactory('key', 'key2'), [ 1, 2 3 ]).toString(),
+				assert.strictEqual(filterFactory().in(pathFactory('key', 'key2'), [ 1, 2, 3 ]).toString(),
 					'in(key/key2, [1,2,3])', 'Didn\'t properly serialize in');
 			},
 
@@ -400,8 +400,8 @@ registerSuite({
 	},
 
 	'provide custom serialization approach': function() {
-		function serializeFilter(filter: Filter<any>) {
-			function recursivelySerialize(filter: Filter<any>) {
+		function serializeFilter(filter: Filter<any>): string {
+			function recursivelySerialize(filter: Filter<any>): string {
 				switch (filter.type) {
 					case FilterType.LessThan:
 						return filter.path.toString() + ' is less than ' + (filter.value || '');

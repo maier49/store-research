@@ -1,10 +1,10 @@
 import Query, { QueryType } from './query';
-export interface Range<T extends { id: string }> extends Query<T> {
+export interface StoreRange<T> extends Query<T> {
 	start: number;
 	count: number;
 }
 
-export function rangeFactory<T extends { id: string }>(start: number, count: number, serializer?: (range: Range<T>) => string): Range<T> {
+export function rangeFactory<T>(start: number, count: number, serializer?: (range: StoreRange<T>) => string): StoreRange<T> {
 	return {
 		apply: (data: T[]) => data.slice(start, start + count),
 		queryType: QueryType.Range,
@@ -16,6 +16,6 @@ export function rangeFactory<T extends { id: string }>(start: number, count: num
 	};
 }
 
-function serializeRange(range: Range<any>): string {
+function serializeRange(range: StoreRange<any>): string {
 	return `range(${range.start}, ${range.count})`;
 }

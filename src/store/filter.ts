@@ -2,7 +2,7 @@ import { JsonPointer, navigate, pathFactory } from '../patch/JsonPointer';
 import { isEqual } from '../utils';
 import Query, { QueryType } from './query';
 
-export type FilterFunction<T extends { id: string }> = (data: T[]) => T[];
+export type FilterFunction<T> = (data: T[]) => T[];
 export type ObjectPointer = JsonPointer | string;
 
 export const enum FilterType {
@@ -26,16 +26,16 @@ export const enum BooleanOp {
 	Or
 }
 
-export type FilterChainMember<T extends { id: string }> = (SimpleFilter<T> | BooleanOp);
+export type FilterChainMember<T> = (SimpleFilter<T> | BooleanOp);
 
-export interface SimpleFilter<T extends { id: string }> extends Query<T> {
+export interface SimpleFilter<T> extends Query<T> {
 	type: FilterType;
 	test?: (item: T) => boolean;
 	filterChain?: FilterChainMember<T>[];
 	path?: ObjectPointer;
 	value?: any;
 }
-export interface BooleanFilter<T extends { id: string }> extends SimpleFilter<T> {
+export interface BooleanFilter<T> extends SimpleFilter<T> {
 	lessThan(path: ObjectPointer, value: number): Filter<T>;
 	lessThanOrEqualTo(path: ObjectPointer, value: number): Filter<T>;
 	greaterThan(path: ObjectPointer, value: number): Filter<T>;
@@ -51,18 +51,18 @@ export interface BooleanFilter<T extends { id: string }> extends SimpleFilter<T>
 	notDeepEqualTo<U>(path: ObjectPointer, value: U[]): Filter<T>;
 	custom(test: (item: T) => boolean): Filter<T>;
 }
-export interface Filter<T extends { id: string }> extends BooleanFilter<T> {
+export interface Filter<T> extends BooleanFilter<T> {
 	and(filter: Filter<T>): Filter<T>;
 	and(): BooleanFilter<T>;
 	or(filter: Filter<T>): Filter<T>;
 	or(): BooleanFilter<T>;
 }
 
-function isFilter<T extends { id: string }>(filterOrFunction: FilterChainMember<T>): filterOrFunction is Filter<T> {
+function isFilter<T>(filterOrFunction: FilterChainMember<T>): filterOrFunction is Filter<T> {
 	return typeof filterOrFunction !== 'function'  && (<any> filterOrFunction).apply;
 }
 
-export default function filterFactory<T extends { id: string }>(serializer?: (filter: Filter<T>) => string): Filter<T> {
+export default function filterFactory<T>(serializer?: (filter: Filter<T>) => string): Filter<T> {
 	// var subFilters: NestedFilter<T> = subFilters || [];
 	let filters: FilterChainMember<T>[] = [];
 	serializer = serializer || serializeFilter;
@@ -70,7 +70,7 @@ export default function filterFactory<T extends { id: string }>(serializer?: (fi
 	return filterFactoryHelper(filters, serializer);
 }
 
-function filterFactoryHelper<T extends { id: string }>(filters: FilterChainMember<T>[], serializer?: (filter: Filter<T>) => string): Filter<T> {
+function filterFactoryHelper<T>(filters: FilterChainMember<T>[], serializer?: (filter: Filter<T>) => string): Filter<T> {
 	// Small helpers to abstract common operations for building comparator filters
 	// The main helper delegates to the factory, adding and AND operation before the next filter,
 	// because by default each filter in a chain will be ANDed with the previous.
@@ -128,7 +128,7 @@ function filterFactoryHelper<T extends { id: string }>(filters: FilterChainMembe
 	return filter;
 }
 
-function applyFilterChain<T extends { id: string }>(item: T, filterChain: FilterChainMember<T>[]): boolean {
+function applyFilterChain<T>(item: T, filterChain: FilterChainMember<T>[]): boolean {
 	let ordFilterSections: FilterChainMember<T>[][] = [];
 	let startOfSlice = 0;
 	// Ands have higher precedence, so split into chains of
@@ -159,7 +159,7 @@ function applyFilterChain<T extends { id: string }>(item: T, filterChain: Filter
 	});
 }
 
-function comparatorFactory<T extends { id: string }>(operator: FilterType, value: any, path?: ObjectPointer): SimpleFilter<T> {
+function comparatorFactory<T>(operator: FilterType, value: any, path?: ObjectPointer): SimpleFilter<T> {
 	path = typeof path === 'string' ? pathFactory(path) : path;
 	let test: (property: any) => boolean;
 	let type: FilterType;

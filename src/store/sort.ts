@@ -1,9 +1,9 @@
 import Query, { QueryType } from './Query';
-import { JsonPointer, navigate, pathFactory } from "../patch/jsonPointer";
+import { JsonPointer, navigate, pathFactory } from '../patch/jsonPointer';
 
-export interface Sort<T extends { id: string }> extends Query<T> {}
+export interface Sort<T> extends Query<T> {}
 
-export function sortFactory<T extends { id: string }>(comparatorOrProperty: ((a: T, b: T) => number) | string | JsonPointer, descending?: boolean): Sort<T> {
+export function sortFactory<T>(comparatorOrProperty: ((a: T, b: T) => number) | string | JsonPointer, descending?: boolean): Sort<T> {
 	const isFunction = typeof comparatorOrProperty === 'function';
 	let comparator: (a: T, b: T) => number;
 
@@ -16,7 +16,7 @@ export function sortFactory<T extends { id: string }>(comparatorOrProperty: ((a:
 		} else {
 			pointer = <JsonPointer> comparatorOrProperty;
 		}
-		comparator = (a: T, b: T) => sortValue(navigate(pointer, a), navigate(pointer, b))
+		comparator = (a: T, b: T) => sortValue(navigate(pointer, a), navigate(pointer, b));
 	}
 
 	if (descending) {
@@ -39,8 +39,8 @@ function flip<T>(comparator: (a: T, b: T) => number) {
 	return (a: T, b: T) => -1 * comparator(a, b);
 }
 function sortValue(a: any, b: any) {
-	let comparison;
-	if (a== null && b == null) {
+	let comparison: number;
+	if (a == null && b == null) {
 		comparison = 0;
 	} else if (a == null && b != null) {
 		comparison = -1;

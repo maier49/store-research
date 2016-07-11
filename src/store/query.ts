@@ -1,4 +1,4 @@
-interface Query<T extends { id: string }> {
+interface Query<T> {
 	apply(data: T[]): T[];
 	toString(): string;
 	queryType: QueryType;
